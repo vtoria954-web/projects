@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>호텔 예약 취소 분석</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 레이아웃: 짙은 청록 히어로 위에 숫자 카드가 걸쳐 앉고, 아래로 분석 섹션이 이어지는 호텔 리포트 */
+:root {
+  --bg: #f3f6f5;
+  --surface: #ffffff;
+  --ink: #12211f;
+  --muted: #5d6e6b;
+  --faint: #8a9997;
+  --line: #dfe6e4;
+  --soft: #e8f0ee;
+  --brand: #0f544d;
+  --brand-2: #2b8f83;
+  --brand-soft: #b9d9d3;
+  --hot: #d9503f;
+  --hot-soft: #f6d9d4;
+  --gold: #b88a2e;
+  --hero-1: #0f4f49;
+  --hero-2: #0a3532;
+  --hero-ink: #f2f7f6;
+  --hero-muted: #a9c7c2;
+  --shadow: 0 1px 2px rgba(16, 40, 37, .06), 0 8px 24px rgba(16, 40, 37, .07);
+  --f-display: "Noto Serif KR", "Nanum Myeongjo", Georgia, serif;
+  --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --r: 14px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1514; --surface: #111e1c; --ink: #e5eeec; --muted: #98aba8; --faint: #6c7f7c;
+    --line: #213431; --soft: #172826; --brand: #56b8ab; --brand-2: #86d3c8; --brand-soft: #2a4a46;
+    --hot: #ff7b69; --hot-soft: #4a2622; --gold: #e0b55a;
+    --hero-1: #10302d; --hero-2: #0a1d1b; --hero-ink: #eef6f4; --hero-muted: #8fb2ac;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1514; --surface: #111e1c; --ink: #e5eeec; --muted: #98aba8; --faint: #6c7f7c;
+  --line: #213431; --soft: #172826; --brand: #56b8ab; --brand-2: #86d3c8; --brand-soft: #2a4a46;
+  --hot: #ff7b69; --hot-soft: #4a2622; --gold: #e0b55a;
+  --hero-1: #10302d; --hero-2: #0a1d1b; --hero-ink: #eef6f4; --hero-muted: #8fb2ac;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.6; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+[hidden] { display: none !important; }
+.wrap { max-width: 1160px; margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+
+/* 히어로 */
+.hero { background: radial-gradient(1200px 400px at 85% -10%, rgba(255,255,255,.08), transparent 60%), linear-gradient(160deg, var(--hero-1), var(--hero-2)); color: var(--hero-ink); }
+.hero .wrap { padding-block: 56px 112px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 40px; align-items: center; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--hero-muted); display: flex; gap: 12px; align-items: center; }
+.eyebrow::before { content: ""; width: 28px; height: 1px; background: var(--gold); }
+.hero h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(32px, 5vw, 52px); line-height: 1.15; letter-spacing: -.01em; margin: 14px 0 18px; text-wrap: balance; }
+.lede { font-size: 17px; color: var(--hero-muted); max-width: 46ch; margin: 0; text-wrap: pretty; }
+.lede b { color: var(--hero-ink); font-weight: 600; }
+.lede .hl { color: #ffb4a8; }
+.ring { position: relative; width: 210px; height: 210px; flex: none; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring .track { stroke: rgba(255,255,255,.12); }
+.ring .val { stroke: #ff8f7f; stroke-linecap: round; transition: stroke-dashoffset 1.2s cubic-bezier(.2,.7,.2,1); }
+.ring .center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.ring .big { font-family: var(--f-display); font-size: 46px; font-weight: 700; line-height: 1; }
+.ring .cap { font-size: 13px; color: var(--hero-muted); margin-top: 6px; }
+
+/* 숫자 카드 */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: -64px; position: relative; }
+.kpi { background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow); padding: 20px 22px; display: grid; gap: 6px; border: 1px solid var(--line); }
+.kpi .lab { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.kpi .lab i { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-2); }
+.kpi.warn .lab i { background: var(--gold); }
+.kpi.best .lab i { background: var(--brand); }
+.kpi .num { font-family: var(--f-display); font-size: 34px; font-weight: 700; line-height: 1.1; }
+.kpi .num small { font-family: var(--f-body); font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.kpi .note { font-size: 12.5px; color: var(--faint); line-height: 1.45; }
+
+/* 섹션 내비 */
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); margin-top: 36px; }
+.nav .wrap { display: flex; gap: 6px; overflow-x: auto; padding-block: 10px; scrollbar-width: none; }
+.nav a { flex: none; text-decoration: none; color: var(--muted); font-size: 14px; padding: 6px 14px; border-radius: 999px; transition: background .2s, color .2s; }
+.nav a:hover, .nav a:focus-visible { background: var(--soft); color: var(--ink); outline: none; }
+.nav a.on { background: var(--brand); color: #fff; }
+
+/* 섹션 */
+main section { padding-block: 48px 8px; scroll-margin-top: 64px; }
+.sh { display: grid; gap: 8px; margin-bottom: 22px; max-width: 72ch; }
+.sh .tag { font-family: var(--f-mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--brand-2); }
+.sh h2 { font-family: var(--f-display); font-size: clamp(24px, 3vw, 30px); font-weight: 700; margin: 0; line-height: 1.25; text-wrap: balance; }
+.sh p { margin: 0; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr)); gap: 18px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 22px 24px; min-width: 0; position: relative; }
+.card-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.card h3 { margin: 0; font-size: 16.5px; font-weight: 600; }
+.card .sub { font-size: 13px; color: var(--muted); margin: 0 0 18px; }
+.chip { font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: var(--soft); color: var(--brand); white-space: nowrap; }
+.chip.hot { background: var(--hot-soft); color: var(--hot); }
+
+/* 막대 */
+.bars { display: grid; gap: 12px; }
+.br { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) 3.6rem; gap: 14px; align-items: center; font-size: 14px; cursor: default; }
+.br .bl { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.br .bl span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.br .bl small { font-size: 11.5px; color: var(--faint); font-family: var(--f-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr { position: relative; height: 12px; background: var(--soft); border-radius: 999px; }
+.fl { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--brand-2); width: 0; transition: width .9s cubic-bezier(.2,.7,.2,1); }
+.br.hot .fl { background: var(--hot); }
+.br .bv { text-align: right; font-family: var(--f-mono); font-size: 13.5px; }
+.br.hot .bv { color: var(--hot); font-weight: 500; }
+.avg { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--ink); opacity: .55; border-radius: 2px; }
+.avg-key { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 16px; }
+.avg-key i { width: 2px; height: 14px; background: var(--ink); opacity: .55; border-radius: 2px; }
+.avg-key i.h { width: 14px; height: 8px; border-radius: 4px; background: var(--hot); opacity: 1; margin-left: 10px; }
+
+/* 상관계수 */
+.corr-wrap { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; }
+.cr { display: grid; grid-template-columns: 10.5rem minmax(0, 1fr) 3.4rem; gap: 14px; align-items: center; font-size: 14px; }
+.cr .cl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctr { position: relative; height: 22px; }
+.ctr::before { content: ""; position: absolute; left: 50%; top: -6px; bottom: -6px; width: 1px; background: var(--line); }
+.cb { position: absolute; top: 4px; bottom: 4px; border-radius: 999px; transition: width .9s cubic-bezier(.2,.7,.2,1), left .9s cubic-bezier(.2,.7,.2,1); }
+.cb.pos { background: var(--hot); } .cb.neg { background: var(--brand-2); }
+.cr .cv { text-align: right; font-family: var(--f-mono); font-size: 13.5px; }
+.cr.weak { color: var(--muted); font-size: 13px; }
+.cr.weak .cb { opacity: .45; }
+.axis { display: grid; grid-template-columns: 10.5rem minmax(0, 1fr) 3.4rem; gap: 14px; font-size: 11.5px; color: var(--faint); font-family: var(--f-mono); margin-top: 6px; }
+.axis div { display: flex; justify-content: space-between; }
+details.more { margin-top: 18px; border-top: 1px dashed var(--line); padding-top: 14px; }
+details.more summary { cursor: pointer; font-size: 14px; color: var(--brand); list-style: none; display: inline-flex; gap: 6px; align-items: center; }
+details.more summary::-webkit-details-marker { display: none; }
+details.more summary::before { content: "＋"; font-size: 12px; }
+details.more[open] summary::before { content: "－"; }
+details.more .bars { margin-top: 14px; gap: 8px; }
+.insights { display: grid; gap: 14px; align-content: start; }
+.ins { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px 20px; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; }
+.ins .v { grid-row: span 2; font-family: var(--f-display); font-size: 28px; font-weight: 700; line-height: 1; color: var(--hot); align-self: center; min-width: 3.2ch; }
+.ins.neg .v { color: var(--brand-2); }
+.ins b { font-weight: 600; font-size: 15px; }
+.ins span { font-size: 13px; color: var(--muted); }
+
+/* 모델 */
+.dl { display: grid; gap: 18px; }
+.dr { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 16px; align-items: center; font-size: 14px; }
+.dr .dn { line-height: 1.3; }
+.dr .dn small { display: block; font-size: 12px; color: var(--faint); font-family: var(--f-mono); }
+.dt { position: relative; height: 26px; }
+.dt .grid-l { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
+.dt .seg { position: absolute; top: 12px; height: 2px; background: var(--faint); opacity: .5; }
+.dt .dot { position: absolute; top: 6px; width: 14px; height: 14px; border-radius: 50%; transform: translateX(-50%); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.dt .dot.trn { background: var(--faint); }
+.dt .dot.tst { background: var(--brand); }
+.dr.over .dt .dot.tst { background: var(--hot); }
+.dr.over .dt .seg { background: var(--hot); opacity: .6; }
+.dt .lbl { position: absolute; top: -14px; font-family: var(--f-mono); font-size: 11.5px; transform: translateX(-50%); color: var(--ink); white-space: nowrap; }
+.dt .lbl.t { color: var(--faint); }
+.dax { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 16px; font-family: var(--f-mono); font-size: 11.5px; color: var(--faint); }
+.dax .ticks { position: relative; height: 16px; }
+.dax .ticks span { position: absolute; transform: translateX(-50%); }
+.legend { display: flex; gap: 18px; font-size: 12.5px; color: var(--muted); margin-bottom: 22px; flex-wrap: wrap; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 11px; height: 11px; border-radius: 50%; }
+.imp .br { grid-template-columns: 7.5rem minmax(0, 1fr) 3.4rem; }
+.imp .fl { background: var(--brand); }
+.imp .br.low .fl { background: var(--faint); }
+
+/* 표 */
+.tw { overflow-x: auto; margin: 0 -4px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .04em; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 13px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: var(--soft); }
+td.n, th.n { text-align: right; font-family: var(--f-mono); }
+td.big { font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 3px 10px; border-radius: 999px; background: var(--soft); color: var(--brand); }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill.warn { background: color-mix(in srgb, var(--gold) 16%, transparent); color: var(--gold); }
+.pill.bad { background: var(--hot-soft); color: var(--hot); }
+.col { font-family: var(--f-mono); font-size: 12.5px; padding: 2px 8px; border-radius: 6px; background: var(--soft); color: var(--ink); }
+.st-c { color: var(--hot); } .st-k { color: var(--brand-2); }
+
+footer { margin-top: 56px; border-top: 1px solid var(--line); }
+footer .wrap { padding-block: 26px 40px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px 28px; }
+footer b { color: var(--ink); font-weight: 500; }
+
+/* 툴팁 */
+.tip { position: absolute; z-index: 20; pointer-events: none; background: var(--ink); color: var(--bg); border-radius: 10px; padding: 8px 12px; font-size: 12.5px; line-height: 1.5; box-shadow: var(--shadow); white-space: nowrap; }
+.tip .t1 { opacity: .7; }
+
+@media (max-width: 860px) {
+  .hero .wrap { grid-template-columns: 1fr; padding-block: 40px 100px; }
+  .ring { width: 170px; height: 170px; }
+  .ring .big { font-size: 38px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .corr-wrap { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .br, .imp .br { grid-template-columns: 6.2rem minmax(0, 1fr) 3.2rem; gap: 10px; }
+  .cr, .axis { grid-template-columns: 7.5rem minmax(0, 1fr) 3rem; gap: 10px; }
+  .dr, .dax { grid-template-columns: 1fr; gap: 6px; }
+  .dr .dt { margin-top: 16px; }
+  .dax > span:first-child { display: none; }
+  .kpi .num { font-size: 28px; }
+  .card { padding: 18px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Hotel Bookings · Cancellation Report</div>
+      <h1>호텔 예약 취소 분석</h1>
+      <p class="lede" id="lede">이상치를 뺀 <b data-k="clean">—</b>건 중 <b data-k="rate">—</b>가 취소됐습니다. 보증금 없는 예약은 <b class="hl" data-k="nodep">—</b>, 단체 예약은 <b class="hl" data-k="group">—</b>가 취소돼 보증금 정책과 단체 예약 관리가 취소를 줄일 핵심입니다.</p>
+    </div>
+    <div class="ring" aria-label="전체 취소율">
+      <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="52" fill="none" stroke-width="10"></circle><circle class="val" id="ring-val" cx="60" cy="60" r="52" fill="none" stroke-width="10" stroke-dasharray="326.7" stroke-dashoffset="326.7"></circle></svg>
+      <div class="center"><div class="big" data-k="rate">—</div><div class="cap">전체 취소율</div></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="kpis">
+    <div class="kpi"><span class="lab"><i></i>전체 예약</span><span class="num"><span data-k="total">—</span><small>건</small></span><span class="note">hotel_bookings.csv 원본</span></div>
+    <div class="kpi warn"><span class="lab"><i></i>이상치 제거</span><span class="num"><span data-k="outliers">—</span><small>건</small></span><span class="note">리드타임 1년 초과 · 성인 7명 이상 · 요금 음수·1000 초과</span></div>
+    <div class="kpi"><span class="lab"><i></i>분석 대상</span><span class="num"><span data-k="clean">—</span><small>건</small></span><span class="note">취소 <span data-k="canceled">—</span>건 · 유지 <span data-k="kept">—</span>건</span></div>
+    <div class="kpi best"><span class="lab"><i></i>최고 테스트 정확도</span><span class="num" data-k="best">—</span><span class="note" data-k="bestname">—</span></div>
+  </div>
+</div>
+
+<nav class="nav" aria-label="섹션">
+  <div class="wrap">
+    <a href="#factors">취소 요인</a>
+    <a href="#corr">상관계수</a>
+    <a href="#models">모델 성능</a>
+    <a href="#outliers">이상치</a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <section id="factors">
+    <div class="sh">
+      <span class="tag">Drivers</span>
+      <h2>무엇이 취소를 가르나</h2>
+      <p>변수 값별로 예약을 나눠 취소율을 비교했습니다. 세로선은 전체 취소율이고, 80%를 넘는 그룹은 붉게 표시했습니다.</p>
+    </div>
+    <div class="grid2" id="rate-grid"></div>
+    <div class="avg-key"><i></i>전체 취소율 <i class="h"></i>취소율 80% 이상</div>
+  </section>
+
+  <section id="corr">
+    <div class="sh">
+      <span class="tag">Correlation</span>
+      <h2>취소여부와 함께 움직이는 변수</h2>
+      <p>범주형은 원-핫 인코딩, 월은 1~12로 바꾸고 결측은 어린이수 0, 요금 중앙값으로 채운 뒤 피어슨 상관계수를 계산했습니다.</p>
+    </div>
+    <div class="corr-wrap">
+      <div class="card">
+        <div class="card-h"><h3>상관계수 (|r| ≥ 0.1)</h3><span class="chip">오른쪽 = 취소 증가</span></div>
+        <p class="sub">원-핫 인코딩 후 의미 있는 크기의 변수만 표시</p>
+        <div class="bars" id="corr-strong"></div>
+        <div class="axis"><span></span><div><span>−0.5</span><span>0</span><span>+0.5</span></div><span></span></div>
+        <details class="more"><summary id="weak-sum">관계가 약한 변수 보기</summary><div class="bars" id="corr-weak"></div></details>
+      </div>
+      <div class="insights" id="insights"></div>
+    </div>
+  </section>
+
+  <section id="models">
+    <div class="sh">
+      <span class="tag">Models</span>
+      <h2>분류 모델 성능</h2>
+      <p>hotel_cancel_prediction.py를 실행한 결과입니다. 이상치 제거 후 훈련 70%, 테스트 30%로 나눴습니다(random_state=123).</p>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>훈련 → 테스트 정확도</h3><span class="chip" id="best-chip">—</span></div>
+        <p class="sub">두 점 사이가 멀수록 과적합입니다. 가로축은 70%부터 시작합니다.</p>
+        <div class="legend"><span><i style="background:var(--faint)"></i>훈련</span><span><i style="background:var(--brand)"></i>테스트</span><span><i style="background:var(--hot)"></i>차이 5%p 이상</span></div>
+        <div class="dl" id="dumbbell"></div>
+        <div class="dax" style="margin-top:10px"><span></span><div class="ticks" id="dticks"></div></div>
+      </div>
+      <div class="card imp">
+        <div class="card-h"><h3>결정트리 변수 중요도</h3><span class="chip">max_depth=5</span></div>
+        <p class="sub">모델이 판단에 실제로 쓴 변수입니다.</p>
+        <div class="bars" id="imp"></div>
+        <p class="sub" id="imp-zero" style="margin:16px 0 0"></p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <div class="card-h"><h3>모델별 정확도</h3></div>
+      <p class="sub">차이 = 훈련 − 테스트</p>
+      <div class="tw"><table><thead><tr><th>모델</th><th class="n">훈련</th><th class="n">테스트</th><th class="n">차이</th><th>판정</th></tr></thead><tbody id="model-body"></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="outliers">
+    <div class="sh">
+      <span class="tag">Data cleaning</span>
+      <h2>제거한 이상치</h2>
+      <p>IQR과 상식 기준으로 걸러낸 값입니다. 아기 1명(babies=1)은 IQR에 걸리지만 정상 값이라 남겼습니다.</p>
+    </div>
+    <div class="card">
+      <div class="tw"><table><thead><tr><th class="n">행</th><th>컬럼</th><th class="n">값</th><th>이유</th><th>취소여부</th></tr></thead><tbody id="out-body"></tbody></table></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span><b>데이터</b> hotel_bookings.csv · 457건</span>
+    <span><b>모델 결과</b> hotel_cancel_prediction.py 실행</span>
+    <span><b>이상치 기준</b> 리드타임 &gt; 365일, 성인 &gt; 6명, 요금 &lt; 0 또는 &gt; 1000</span>
+  </div>
+</footer>
+
+<script>
+const CSV = "﻿hotel,lead_time,arrival_month,adults,children,babies,country,market_segment,deposit_type,customer_type,adr,previous_cancellations,special_requests,is_canceled\nResort Hotel,263,Dec,2,0.0,0,KOR,Online,Refundable,Transient,227.0,0,1,0\nCity Hotel,282,Feb,2,0.0,0,GBR,Agent,No Deposit,Contract,328.0,1,2,1\nResort Hotel,26,Jun,2,1.0,0,FRA,Corporate,Refundable,Group,195.0,5,2,1\nResort Hotel,225,Feb,2,0.0,0,FRA,Offline,No Deposit,Group,1500.0,2,4,1\nResort Hotel,276,Feb,2,2.0,0,KOR,Corporate,No Deposit,Group,111.0,1,2,1\nCity Hotel,285,Feb,3,0.0,0,GBR,Corporate,Non Refund,Contract,343.0,4,3,1\nResort Hotel,96,Nov,4,0.0,0,FRA,Online,Refundable,Contract,288.0,0,2,0\nResort Hotel,283,Mar,2,1.0,0,KOR,Agent,No Deposit,Transient,244.0,3,1,1\nResort Hotel,316,Feb,2,0.0,0,FRA,Online,Refundable,Contract,215.0,0,2,0\nCity Hotel,1200,Apr,2,0.0,0,CHN,Online,Refundable,Contract,271.0,3,0,1\nResort Hotel,146,Sep,2,0.0,0,JPN,Online,Non Refund,Group,110.0,5,1,1\nResort Hotel,3,Jun,1,,0,JPN,Corporate,Refundable,Contract,178.0,4,0,0\nResort Hotel,34,Jan,2,0.0,0,FRA,Online,Non Refund,Group,222.0,5,1,1\nResort Hotel,191,Aug,3,2.0,0,USA,Online,No Deposit,Group,205.0,4,3,1\nCity Hotel,48,Dec,2,2.0,0,GBR,Agent,Refundable,Contract,159.0,0,3,0\nResort Hotel,16,Jul,1,0.0,0,GBR,Agent,No Deposit,Transient,318.0,3,3,1\nCity Hotel,171,Oct,2,0.0,0,GBR,Online,Refundable,Transient,327.0,5,0,1\nCity Hotel,219,Mar,2,0.0,0,CHN,Agent,No Deposit,Contract,123.0,4,4,1\nCity Hotel,157,Jan,2,0.0,0,GBR,Agent,,Transient,256.0,1,1,0\nResort Hotel,45,May,1,0.0,0,JPN,Online,Refundable,Group,328.0,1,3,0\nCity Hotel,5,Apr,1,0.0,0,CHN,Corporate,Refundable,Group,253.0,5,1,1\nResort Hotel,98,Oct,3,0.0,0,KOR,Online,Refundable,Contract,210.0,3,0,0\nCity Hotel,232,Aug,2,1.0,0,GBR,Agent,Refundable,Transient,77.0,5,4,1\nCity Hotel,36,Jan,2,1.0,1,GBR,Corporate,Refundable,Transient,306.0,0,0,0\nCity Hotel,279,Oct,2,1.0,0,KOR,Offline,Refundable,Group,214.0,4,1,1\nCity Hotel,348,Jan,1,0.0,0,GBR,Corporate,Refundable,Contract,112.0,0,4,0\nCity Hotel,301,Dec,2,0.0,0,KOR,Agent,Refundable,Transient,71.0,1,4,0\nCity Hotel,180,Apr,3,0.0,0,CHN,Corporate,No Deposit,Contract,119.0,4,0,1\nCity Hotel,94,Aug,3,2.0,0,JPN,Online,Non Refund,Transient,145.0,5,3,0\nCity Hotel,98,May,3,0.0,0,KOR,Offline,Refundable,Group,212.0,0,1,0\nResort Hotel,187,Feb,2,1.0,0,USA,Offline,Non Refund,Group,128.0,2,2,1\nResort Hotel,115,Jun,2,0.0,0,KOR,Offline,Refundable,Contract,54.0,3,2,0\nCity Hotel,190,May,2,0.0,0,GBR,Agent,Refundable,Group,169.0,3,0,1\nCity Hotel,252,Feb,2,1.0,0,CHN,Agent,No Deposit,Transient,227.0,2,1,1\nCity Hotel,160,Nov,3,0.0,0,FRA,Offline,No Deposit,Group,225.0,1,1,1\nResort Hotel,255,Nov,1,1.0,0,CHN,Corporate,Non Refund,Contract,266.0,4,0,1\nCity Hotel,322,Nov,1,2.0,0,FRA,Offline,No Deposit,Contract,105.0,3,1,1\nResort Hotel,127,Mar,2,0.0,0,KOR,Corporate,No Deposit,Contract,236.0,2,3,1\nResort Hotel,17,Sep,1,0.0,1,JPN,Corporate,Non Refund,Transient,281.0,5,0,0\nResort Hotel,280,Jul,2,0.0,0,USA,Agent,No Deposit,Transient,304.0,2,3,1\nResort Hotel,222,Jul,2,2.0,0,CHN,Corporate,Refundable,Transient,153.0,1,1,0\nResort Hotel,53,Nov,2,0.0,0,GBR,Offline,Non Refund,Transient,126.0,1,0,0\nCity Hotel,57,Jun,3,0.0,0,FRA,Agent,Non Refund,Transient,279.0,0,1,0\nCity Hotel,322,Aug,3,,0,GBR,Online,Refundable,Group,307.0,3,0,1\nCity Hotel,173,Apr,2,1.0,0,JPN,Online,No Deposit,Transient,313.0,0,1,1\nCity Hotel,279,Aug,2,0.0,0,FRA,Agent,Non Refund,Transient,231.0,2,3,1\nCity Hotel,113,Apr,2,1.0,0,CHN,Offline,Non Refund,Group,305.0,4,3,1\nResort Hotel,287,Aug,2,2.0,0,KOR,Online,Refundable,Transient,87.0,4,1,1\nCity Hotel,341,Sep,2,0.0,0,GBR,Online,Refundable,Contract,225.0,1,0,0\nCity Hotel,150,Mar,2,0.0,0,JPN,Corporate,No Deposit,Transient,76.0,4,2,1\nResort Hotel,126,Mar,2,2.0,1,CHN,Corporate,Non Refund,Transient,325.0,4,3,0\nCity Hotel,154,Nov,2,,0,CHN,Offline,No Deposit,Contract,189.0,4,3,1\nResort Hotel,272,Feb,2,1.0,0,CHN,Agent,No Deposit,Contract,348.0,2,2,1\nCity Hotel,103,Oct,2,0.0,1,CHN,Offline,Refundable,Contract,336.0,4,1,0\nResort Hotel,298,Mar,4,0.0,0,FRA,Agent,Non Refund,Contract,140.0,5,0,1\nCity Hotel,245,Mar,3,1.0,0,CHN,Online,Non Refund,Transient,110.0,4,1,1\nCity Hotel,175,May,1,0.0,0,GBR,Corporate,Non Refund,Contract,212.0,4,4,1\nResort Hotel,38,May,3,0.0,0,JPN,Offline,Refundable,Contract,192.0,0,3,0\nResort Hotel,169,Feb,2,0.0,0,FRA,Offline,Refundable,Group,302.0,2,4,1\nResort Hotel,246,Dec,3,0.0,0,CHN,Agent,Refundable,Contract,318.0,1,3,0\nResort Hotel,25,Oct,3,0.0,0,USA,Agent,Refundable,Contract,340.0,0,3,0\nResort Hotel,305,Jun,2,0.0,0,USA,Offline,Refundable,Group,236.0,3,4,1\nResort Hotel,12,May,1,2.0,0,JPN,Agent,Non Refund,Group,340.0,2,4,1\nResort Hotel,315,Jun,2,0.0,0,KOR,Offline,No Deposit,Transient,135.0,5,1,1\nResort Hotel,312,Jan,2,0.0,0,KOR,Offline,Non Refund,Group,215.0,2,4,1\nCity Hotel,35,May,2,0.0,0,FRA,Offline,No Deposit,Transient,163.0,3,1,1\nCity Hotel,172,Sep,2,1.0,0,FRA,Online,Refundable,Group,232.0,3,1,1\nResort Hotel,19,Dec,1,0.0,0,FRA,Agent,No Deposit,Group,256.0,3,1,1\nCity Hotel,320,Oct,3,2.0,0,KOR,Corporate,Non Refund,Transient,305.0,1,3,0\nCity Hotel,263,Feb,4,0.0,0,USA,Corporate,Non Refund,Group,284.0,4,3,1\nCity Hotel,141,Jan,2,0.0,0,KOR,Agent,No Deposit,Transient,52.0,2,4,1\nCity Hotel,142,Oct,2,0.0,0,GBR,Offline,Refundable,Group,257.0,4,3,1\nResort Hotel,91,Nov,2,0.0,0,CHN,Corporate,Refundable,Contract,246.0,4,4,0\nCity Hotel,321,Sep,1,0.0,0,FRA,Corporate,Non Refund,Group,174.0,5,3,1\nResort Hotel,287,Oct,4,0.0,0,USA,Agent,No Deposit,Transient,187.0,3,0,1\nCity Hotel,214,Sep,1,1.0,0,JPN,Corporate,Refundable,Group,74.0,1,0,1\nCity Hotel,341,Sep,2,0.0,0,JPN,Offline,Refundable,Transient,117.0,5,4,1\nCity Hotel,50,Jun,2,0.0,0,CHN,Agent,Non Refund,Transient,110.0,0,3,0\nResort Hotel,152,Aug,2,0.0,0,USA,Offline,Refundable,Contract,78.0,1,3,0\nCity Hotel,185,Nov,2,1.0,0,KOR,Corporate,No Deposit,Contract,68.0,4,1,1\nResort Hotel,62,Jan,3,0.0,0,KOR,Corporate,Non Refund,Transient,220.0,1,2,0\nCity Hotel,189,Oct,2,0.0,0,GBR,Offline,Non Refund,Group,123.0,3,4,1\nResort Hotel,124,Apr,1,0.0,0,GBR,Online,,Transient,110.0,0,2,0\nCity Hotel,149,Jan,20,1.0,0,KOR,Corporate,Non Refund,Transient,202.0,3,2,0\nResort Hotel,313,Aug,4,0.0,0,JPN,Online,Refundable,Group,325.0,0,4,1\nResort Hotel,57,Jan,3,0.0,0,FRA,Corporate,Refundable,Group,-50.0,5,3,1\nCity Hotel,341,Mar,2,1.0,0,JPN,Online,No Deposit,Group,260.0,4,4,1\nResort Hotel,304,Apr,2,1.0,1,GBR,Online,Refundable,Group,188.0,0,2,1\nCity Hotel,179,Aug,2,0.0,0,CHN,Online,No Deposit,Transient,159.0,0,3,1\nCity Hotel,169,Jun,2,1.0,0,KOR,Offline,No Deposit,Transient,232.0,0,0,1\nCity Hotel,325,Oct,4,0.0,0,GBR,Online,Refundable,Contract,77.0,1,4,0\nCity Hotel,270,Dec,2,0.0,0,GBR,Online,No Deposit,Transient,246.0,5,4,1\nCity Hotel,53,Jul,2,0.0,0,FRA,Online,Refundable,Group,240.0,1,3,0\nCity Hotel,100,Aug,2,0.0,0,KOR,Corporate,Non Refund,Contract,100.0,4,0,0\nCity Hotel,263,Feb,1,0.0,0,FRA,Online,Non Refund,Group,198.0,0,0,1\nCity Hotel,52,Oct,2,2.0,0,KOR,Corporate,No Deposit,Transient,317.0,5,3,1\nCity Hotel,59,Nov,3,0.0,0,FRA,Online,Refundable,Contract,99.0,5,1,0\nCity Hotel,107,Aug,1,0.0,0,JPN,Online,Refundable,Group,295.0,2,4,1\nCity Hotel,4,Mar,2,0.0,0,CHN,Offline,Non Refund,Contract,162.0,4,4,0\nResort Hotel,102,Jul,2,2.0,0,CHN,Corporate,Non Refund,Contract,219.0,5,2,0\nResort Hotel,195,Mar,2,0.0,0,KOR,Online,Refundable,Transient,215.0,0,3,0\nCity Hotel,261,Jul,2,0.0,0,USA,Corporate,No Deposit,Group,63.0,0,2,1\nCity Hotel,349,Nov,2,0.0,0,GBR,Corporate,Non Refund,Contract,252.0,5,2,1\nCity Hotel,46,Dec,3,0.0,0,GBR,Agent,No Deposit,Contract,337.0,1,0,0\nCity Hotel,310,Feb,2,2.0,0,KOR,Offline,No Deposit,Group,238.0,4,4,1\nCity Hotel,307,Oct,2,2.0,0,FRA,Offline,Non Refund,Contract,204.0,0,2,0\nCity Hotel,143,Jun,2,0.0,0,USA,Offline,No Deposit,Contract,104.0,5,0,1\nCity Hotel,268,Mar,2,2.0,0,JPN,Agent,No Deposit,Contract,231.0,0,3,1\nCity Hotel,123,Mar,4,0.0,0,FRA,Agent,Refundable,Group,259.0,5,2,1\nResort Hotel,105,Sep,3,1.0,0,FRA,Offline,No Deposit,Group,124.0,4,4,1\nCity Hotel,157,Jul,2,0.0,0,KOR,Agent,Refundable,Group,326.0,5,2,1\nResort Hotel,146,May,1,0.0,0,KOR,Agent,Non Refund,Group,182.0,2,3,1\nCity Hotel,144,Dec,2,0.0,1,GBR,Agent,Non Refund,Transient,108.0,5,2,0\nCity Hotel,119,Oct,2,0.0,0,KOR,Offline,Refundable,Contract,231.0,5,4,0\nResort Hotel,318,Jul,1,0.0,0,KOR,Offline,Non Refund,Group,113.0,4,0,1\nCity Hotel,274,Sep,2,0.0,0,,Offline,No Deposit,Contract,309.0,5,4,1\nResort Hotel,91,Jan,2,0.0,0,GBR,Agent,No Deposit,Contract,242.0,4,0,1\nCity Hotel,57,Jul,2,1.0,0,JPN,Offline,No Deposit,Transient,192.0,2,1,1\nCity Hotel,345,Jun,3,0.0,0,JPN,Agent,Non Refund,Group,153.0,4,4,1\nResort Hotel,228,Oct,1,0.0,0,KOR,Online,No Deposit,Group,263.0,0,4,1\nCity Hotel,116,Dec,1,2.0,0,GBR,Agent,Non Refund,Contract,291.0,4,3,0\nResort Hotel,317,Sep,3,0.0,0,JPN,Corporate,No Deposit,Group,258.0,2,2,1\nCity Hotel,278,Jan,2,0.0,0,FRA,Offline,Refundable,Contract,142.0,3,0,1\nResort Hotel,126,Apr,2,0.0,0,JPN,Offline,Non Refund,Contract,191.0,5,0,0\nResort Hotel,128,Sep,2,,0,JPN,Corporate,Non Refund,Transient,161.0,4,3,0\nCity Hotel,57,Apr,2,0.0,0,GBR,Agent,No Deposit,Transient,108.0,5,3,1\nCity Hotel,121,Oct,3,0.0,0,FRA,Online,Non Refund,Transient,92.0,1,2,0\nResort Hotel,0,Mar,3,1.0,0,GBR,Corporate,Non Refund,Contract,256.0,0,2,0\nCity Hotel,238,Sep,2,2.0,0,KOR,Corporate,Refundable,Group,317.0,0,4,1\nCity Hotel,289,Feb,2,0.0,1,CHN,Agent,Refundable,Transient,345.0,1,1,0\nCity Hotel,95,Apr,2,0.0,0,JPN,Offline,No Deposit,Group,167.0,1,2,1\nResort Hotel,125,Jun,2,0.0,0,CHN,Agent,Refundable,Transient,69.0,4,3,0\nResort Hotel,117,Feb,1,1.0,0,GBR,Corporate,No Deposit,Transient,271.0,1,2,0\nResort Hotel,47,Aug,4,0.0,0,GBR,Corporate,No Deposit,Contract,215.0,3,0,1\nResort Hotel,88,Aug,1,0.0,0,GBR,Offline,No Deposit,Transient,180.0,5,1,1\nResort Hotel,236,Jan,4,2.0,1,CHN,Offline,Non Refund,Transient,205.0,5,4,1\nResort Hotel,271,Dec,2,0.0,0,GBR,Offline,Refundable,Contract,233.0,2,0,1\nResort Hotel,188,Mar,2,0.0,0,KOR,Agent,No Deposit,Group,139.0,1,0,1\nResort Hotel,191,Oct,2,0.0,0,GBR,Offline,Refundable,Transient,143.0,1,1,0\nResort Hotel,68,Sep,3,0.0,0,USA,Corporate,No Deposit,Contract,62.0,3,4,1\nCity Hotel,277,May,3,0.0,0,CHN,Corporate,Refundable,Transient,342.0,0,3,0\nResort Hotel,348,Jun,3,0.0,0,USA,Online,Refundable,Contract,279.0,0,4,0\nCity Hotel,246,Apr,2,0.0,0,GBR,Agent,No Deposit,Group,341.0,5,2,1\nCity Hotel,75,Oct,2,0.0,0,KOR,Online,Non Refund,Group,75.0,5,0,1\nCity Hotel,153,Feb,3,2.0,0,JPN,Corporate,Refundable,Contract,124.0,4,2,1\nResort Hotel,143,Nov,2,0.0,0,FRA,Online,Non Refund,Contract,348.0,3,3,0\nResort Hotel,85,Aug,2,2.0,0,FRA,Corporate,Non Refund,Contract,199.0,2,2,0\nResort Hotel,184,Nov,2,0.0,0,GBR,Online,No Deposit,Group,197.0,2,4,1\nResort Hotel,284,Jun,4,1.0,0,KOR,Offline,No Deposit,Transient,57.0,3,2,1\nCity Hotel,219,May,4,1.0,0,CHN,Online,No Deposit,Group,78.0,2,3,1\nResort Hotel,68,Sep,1,0.0,0,USA,Offline,Refundable,Contract,345.0,0,3,0\nResort Hotel,46,Jan,3,1.0,0,USA,Offline,No Deposit,Contract,258.0,2,3,1\nResort Hotel,93,May,4,1.0,0,USA,Agent,No Deposit,Group,177.0,2,4,1\nResort Hotel,237,Jun,2,0.0,0,CHN,Offline,Refundable,Contract,165.0,3,3,1\nResort Hotel,203,May,2,0.0,0,FRA,Offline,Refundable,Group,193.0,3,0,1\nCity Hotel,217,Jun,4,0.0,0,KOR,Online,No Deposit,Contract,284.0,2,3,1\nResort Hotel,340,Jun,1,1.0,0,CHN,Corporate,No Deposit,Transient,56.0,1,2,1\nCity Hotel,38,Jul,2,1.0,0,USA,Agent,No Deposit,Transient,94.0,3,2,1\nResort Hotel,99,Apr,2,1.0,0,GBR,Offline,No Deposit,Contract,288.0,4,2,1\nCity Hotel,288,Nov,4,0.0,0,JPN,Agent,Non Refund,Group,204.0,4,4,1\nResort Hotel,253,Aug,4,1.0,0,CHN,Online,Non Refund,Transient,230.0,0,2,0\nResort Hotel,221,Jul,4,0.0,0,CHN,Offline,No Deposit,Group,264.0,2,4,1\nCity Hotel,22,Sep,2,,0,KOR,Online,Non Refund,Contract,137.0,1,4,0\nCity Hotel,249,Jul,3,0.0,0,KOR,Agent,Refundable,Group,305.0,0,3,1\nCity Hotel,9,Mar,3,0.0,0,CHN,Online,Non Refund,Transient,122.0,2,0,0\nResort Hotel,245,Mar,2,0.0,0,USA,Agent,Non Refund,Group,228.0,3,3,1\nCity Hotel,324,Aug,3,0.0,0,JPN,Online,No Deposit,Group,261.0,4,3,1\nResort Hotel,99,May,1,0.0,0,KOR,Agent,Non Refund,Contract,342.0,5,4,0\nResort Hotel,289,Apr,2,0.0,0,USA,Corporate,Non Refund,Contract,283.0,1,4,0\nCity Hotel,179,Aug,2,0.0,0,GBR,Online,Non Refund,Contract,288.0,5,2,1\nCity Hotel,222,Jun,1,0.0,0,KOR,Online,Non Refund,Transient,272.0,4,2,1\nResort Hotel,249,Feb,1,0.0,0,USA,Corporate,Refundable,Transient,168.0,5,3,1\nResort Hotel,146,Apr,2,0.0,0,USA,Corporate,No Deposit,Contract,313.0,3,1,1\nCity Hotel,95,Dec,2,0.0,0,JPN,Online,No Deposit,Contract,256.0,2,1,1\nCity Hotel,256,Nov,3,0.0,0,JPN,Corporate,Refundable,Transient,144.0,3,2,1\nCity Hotel,324,Apr,1,0.0,0,GBR,Offline,Non Refund,Transient,271.0,5,1,1\nResort Hotel,3,Jun,2,0.0,0,USA,Agent,Refundable,Transient,325.0,3,2,0\nResort Hotel,15,Jun,2,0.0,1,FRA,Agent,Non Refund,Transient,280.0,4,4,0\nResort Hotel,279,Jan,3,0.0,0,USA,Agent,Refundable,Contract,168.0,1,3,0\nResort Hotel,335,Aug,2,1.0,0,JPN,Offline,No Deposit,Transient,317.0,3,0,1\nResort Hotel,246,Jun,2,0.0,0,FRA,Corporate,No Deposit,Contract,322.0,4,3,1\nResort Hotel,257,Mar,3,0.0,0,KOR,Corporate,No Deposit,Group,113.0,1,2,1\nCity Hotel,159,Sep,2,0.0,0,KOR,Online,Non Refund,Group,347.0,2,2,1\nResort Hotel,339,Feb,2,0.0,0,CHN,Corporate,Non Refund,Transient,60.0,5,3,1\nResort Hotel,151,Nov,1,0.0,0,JPN,Online,Refundable,Group,147.0,2,2,1\nResort Hotel,177,Aug,3,0.0,0,CHN,Offline,Refundable,Group,120.0,0,1,1\nCity Hotel,162,Oct,1,0.0,0,FRA,Agent,No Deposit,Group,107.0,4,1,1\nResort Hotel,32,Mar,3,0.0,0,JPN,Agent,Non Refund,Transient,339.0,1,2,0\nResort Hotel,178,Dec,2,0.0,0,GBR,Agent,Refundable,Transient,300.0,3,2,1\nCity Hotel,100,May,4,1.0,0,USA,Corporate,Non Refund,Group,325.0,2,1,1\nResort Hotel,267,Jun,3,1.0,0,GBR,Online,Non Refund,Contract,99.0,1,2,0\nResort Hotel,322,Oct,4,1.0,0,FRA,Online,No Deposit,Group,265.0,4,2,1\nResort Hotel,64,Jun,2,2.0,0,JPN,Offline,No Deposit,Transient,101.0,0,3,0\nResort Hotel,167,Apr,3,0.0,0,FRA,Corporate,Non Refund,Transient,320.0,2,0,1\nResort Hotel,329,Mar,2,0.0,0,USA,Offline,Non Refund,Transient,133.0,5,1,1\nCity Hotel,42,Apr,2,0.0,0,KOR,Online,Non Refund,Group,342.0,1,3,0\nCity Hotel,43,Jan,2,0.0,0,KOR,Online,Non Refund,Contract,175.0,5,0,0\nCity Hotel,284,Apr,3,1.0,0,FRA,Agent,No Deposit,Transient,345.0,1,2,1\nResort Hotel,11,Jan,4,0.0,0,CHN,Corporate,Refundable,Transient,,1,2,0\nResort Hotel,94,Dec,3,2.0,0,JPN,Online,No Deposit,Group,345.0,4,3,1\nResort Hotel,301,Jan,2,0.0,0,JPN,Agent,Refundable,Contract,285.0,4,2,1\nCity Hotel,252,Oct,2,2.0,0,KOR,Corporate,Non Refund,Group,105.0,4,4,1\nResort Hotel,241,Jun,3,0.0,0,GBR,Offline,Refundable,Transient,159.0,3,3,1\nResort Hotel,34,May,2,0.0,0,USA,Corporate,No Deposit,Contract,241.0,1,0,0\nCity Hotel,214,Nov,1,0.0,0,GBR,Corporate,No Deposit,Contract,142.0,2,3,1\nResort Hotel,336,Apr,2,0.0,0,GBR,Online,Non Refund,Transient,105.0,5,1,1\nCity Hotel,89,Nov,2,0.0,0,FRA,Online,No Deposit,Contract,109.0,4,3,1\nCity Hotel,263,Mar,2,0.0,0,KOR,Corporate,Non Refund,Contract,187.0,4,2,1\nCity Hotel,92,Jan,2,1.0,0,KOR,Online,No Deposit,Group,88.0,5,2,1\nResort Hotel,89,Jun,1,0.0,0,KOR,Online,No Deposit,Transient,77.0,5,4,1\nResort Hotel,114,Feb,1,0.0,0,FRA,Online,Non Refund,Transient,98.0,1,4,0\nResort Hotel,104,Aug,4,0.0,0,CHN,Agent,Refundable,Transient,174.0,4,4,0\nResort Hotel,195,Oct,2,1.0,0,GBR,Agent,No Deposit,Transient,62.0,5,0,1\nResort Hotel,313,May,2,0.0,0,FRA,Corporate,Refundable,Transient,85.0,3,4,1\nResort Hotel,113,Jul,2,0.0,0,JPN,Online,No Deposit,Contract,150.0,3,0,1\nResort Hotel,74,Oct,2,0.0,0,USA,Agent,No Deposit,Group,331.0,4,4,1\nCity Hotel,216,Dec,4,0.0,0,CHN,Corporate,No Deposit,Transient,135.0,5,0,1\nResort Hotel,276,Feb,3,0.0,0,JPN,Online,No Deposit,Group,53.0,1,3,1\nCity Hotel,248,Aug,1,0.0,0,GBR,Offline,Refundable,Group,272.0,1,3,1\nResort Hotel,163,Feb,2,0.0,1,KOR,Online,Refundable,Contract,215.0,1,2,0\nResort Hotel,191,Apr,3,1.0,0,GBR,Online,No Deposit,Transient,327.0,0,0,1\nResort Hotel,226,Jan,4,0.0,0,FRA,Agent,No Deposit,Contract,179.0,4,1,1\nCity Hotel,176,May,2,0.0,0,USA,Corporate,Refundable,Transient,80.0,1,2,0\nCity Hotel,98,Sep,2,0.0,0,FRA,Corporate,Non Refund,Contract,60.0,3,3,0\nCity Hotel,35,Jan,2,2.0,0,CHN,Agent,Non Refund,Group,145.0,5,0,1\nCity Hotel,95,Sep,4,0.0,0,CHN,Online,Refundable,Transient,239.0,2,4,0\nResort Hotel,151,Nov,2,1.0,0,USA,Offline,No Deposit,Group,241.0,2,1,1\nCity Hotel,150,Aug,4,0.0,0,JPN,Online,No Deposit,Group,315.0,1,3,1\nResort Hotel,189,Jun,2,0.0,0,JPN,Online,Non Refund,Contract,177.0,2,2,1\nResort Hotel,223,Jul,2,0.0,0,CHN,Offline,Non Refund,Transient,287.0,2,0,1\nCity Hotel,36,Mar,2,2.0,0,CHN,Agent,Refundable,Group,161.0,0,1,0\nCity Hotel,267,Jan,2,0.0,0,KOR,Corporate,Non Refund,Contract,194.0,3,0,1\nCity Hotel,182,May,2,1.0,0,JPN,Agent,Refundable,Transient,114.0,3,4,1\nCity Hotel,12,Dec,2,1.0,0,USA,Agent,Non Refund,Transient,296.0,0,2,0\nCity Hotel,278,Dec,2,0.0,0,JPN,Online,Non Refund,Group,272.0,0,0,1\nCity Hotel,216,Feb,3,0.0,0,KOR,Corporate,Non Refund,Transient,155.0,2,3,1\nCity Hotel,285,May,2,0.0,0,FRA,Corporate,No Deposit,Group,230.0,4,2,1\nCity Hotel,272,Aug,1,0.0,0,CHN,Agent,No Deposit,Transient,233.0,5,3,1\nResort Hotel,61,Nov,4,1.0,0,CHN,Offline,No Deposit,Contract,275.0,5,0,1\nCity Hotel,83,Sep,3,2.0,0,KOR,Agent,Non Refund,Group,314.0,2,2,1\nCity Hotel,216,Feb,4,0.0,0,USA,Offline,Refundable,Group,327.0,5,3,1\nResort Hotel,341,Dec,4,,0,CHN,Corporate,Refundable,Transient,138.0,0,4,0\nCity Hotel,186,Mar,2,1.0,0,GBR,Agent,Refundable,Transient,225.0,3,4,1\nResort Hotel,18,Mar,2,0.0,1,CHN,Online,Refundable,Group,67.0,5,0,1\nResort Hotel,176,Jan,3,1.0,0,GBR,Agent,No Deposit,Transient,155.0,2,2,1\nCity Hotel,99,Aug,2,0.0,0,,Corporate,No Deposit,Contract,320.0,4,1,1\nResort Hotel,232,Jun,2,0.0,0,KOR,Online,Non Refund,Transient,216.0,2,2,1\nResort Hotel,75,Dec,3,0.0,0,CHN,Online,Non Refund,Contract,62.0,1,4,0\nResort Hotel,264,Aug,2,0.0,0,JPN,Offline,Refundable,Contract,81.0,2,3,1\nResort Hotel,283,Nov,2,0.0,0,GBR,Online,No Deposit,Contract,89.0,0,1,1\nCity Hotel,205,Sep,2,0.0,1,USA,Online,Refundable,Contract,197.0,3,0,1\nResort Hotel,222,May,2,0.0,0,CHN,Agent,Non Refund,Contract,267.0,3,1,1\nCity Hotel,51,Dec,2,1.0,0,USA,Corporate,Non Refund,Transient,268.0,5,0,0\nResort Hotel,338,Mar,1,1.0,0,CHN,Offline,Refundable,Contract,131.0,0,1,0\nResort Hotel,143,May,3,0.0,0,JPN,Agent,Non Refund,Transient,257.0,1,0,0\nResort Hotel,68,May,2,0.0,0,JPN,Online,Refundable,Contract,250.0,0,0,0\nResort Hotel,98,May,1,0.0,1,JPN,Online,No Deposit,Group,87.0,2,1,1\nCity Hotel,24,Mar,3,0.0,0,FRA,Offline,Refundable,Contract,260.0,0,1,0\nCity Hotel,52,Nov,4,0.0,0,JPN,Corporate,No Deposit,Group,298.0,0,0,1\nResort Hotel,150,Oct,3,0.0,0,KOR,Offline,No Deposit,Contract,276.0,1,4,0\nResort Hotel,143,Apr,3,0.0,0,KOR,Agent,Non Refund,Contract,97.0,2,1,0\nCity Hotel,56,Sep,2,0.0,0,FRA,Offline,Non Refund,Contract,67.0,4,2,0\nResort Hotel,38,Oct,2,0.0,0,GBR,Online,Non Refund,Group,344.0,4,3,1\nResort Hotel,108,Sep,1,0.0,0,USA,Agent,Refundable,Group,245.0,3,0,1\nResort Hotel,180,Feb,2,2.0,0,CHN,Online,Refundable,Contract,236.0,5,0,1\nCity Hotel,41,Aug,2,0.0,0,CHN,Corporate,Non Refund,Transient,273.0,0,3,0\nCity Hotel,185,Aug,2,0.0,0,FRA,Online,Refundable,Contract,278.0,3,4,1\nCity Hotel,222,Jul,3,0.0,0,KOR,Online,Non Refund,Group,126.0,1,3,1\nResort Hotel,121,Aug,2,0.0,0,CHN,Offline,Refundable,Contract,,4,1,0\nResort Hotel,132,Mar,1,1.0,0,KOR,Online,No Deposit,Group,319.0,0,3,1\nCity Hotel,162,Jun,2,0.0,0,GBR,Agent,No Deposit,Group,144.0,1,0,1\nCity Hotel,214,Jan,2,2.0,0,USA,Agent,Non Refund,Group,181.0,5,3,1\nCity Hotel,220,Jul,1,0.0,0,GBR,Corporate,Refundable,Contract,88.0,1,2,0\nCity Hotel,234,Jan,3,0.0,0,FRA,Agent,Refundable,Group,121.0,0,1,1\nResort Hotel,330,Sep,15,1.0,0,,Offline,No Deposit,Group,330.0,5,3,1\nCity Hotel,145,Jan,2,0.0,0,JPN,Corporate,No Deposit,Contract,,1,0,0\nResort Hotel,238,Jan,2,0.0,0,JPN,Agent,Non Refund,Group,236.0,5,1,1\nCity Hotel,75,Jul,3,0.0,0,GBR,Offline,No Deposit,Contract,240.0,0,0,0\nResort Hotel,8,Feb,2,0.0,0,CHN,Agent,Non Refund,Group,169.0,0,4,0\nCity Hotel,73,May,2,1.0,0,USA,Agent,No Deposit,Transient,269.0,5,2,1\nCity Hotel,252,Aug,2,0.0,0,JPN,Online,No Deposit,Transient,102.0,2,4,1\nCity Hotel,229,Aug,2,0.0,0,FRA,Agent,Refundable,Group,271.0,3,2,1\nCity Hotel,6,Mar,3,0.0,0,FRA,Agent,No Deposit,Transient,180.0,1,3,0\nResort Hotel,173,Jul,3,0.0,0,JPN,Offline,No Deposit,Contract,286.0,1,1,1\nCity Hotel,140,Mar,2,0.0,0,JPN,Offline,Non Refund,Transient,295.0,2,3,0\nResort Hotel,167,Jun,3,0.0,0,USA,Online,No Deposit,Group,275.0,2,2,1\nResort Hotel,169,Jun,3,0.0,0,JPN,Agent,Non Refund,Group,257.0,2,2,1\nResort Hotel,282,Mar,3,1.0,0,USA,Online,No Deposit,Contract,,4,2,1\nResort Hotel,121,Jul,3,0.0,0,,Agent,No Deposit,Group,249.0,4,0,1\nCity Hotel,193,Mar,2,0.0,0,JPN,Corporate,Non Refund,Contract,296.0,5,1,1\nResort Hotel,4,Aug,2,1.0,0,GBR,Corporate,Refundable,Transient,121.0,4,3,0\nResort Hotel,28,Oct,2,0.0,0,GBR,Online,Non Refund,Transient,234.0,0,3,0\nResort Hotel,164,Apr,3,0.0,0,FRA,Online,,Contract,55.0,5,4,1\nCity Hotel,338,Jan,2,0.0,0,USA,Online,Non Refund,Contract,255.0,1,2,0\nCity Hotel,135,Apr,3,0.0,0,GBR,Offline,Refundable,Group,81.0,3,2,1\nCity Hotel,999,Jul,3,0.0,0,USA,Offline,No Deposit,Transient,148.0,0,2,1\nCity Hotel,341,Nov,1,2.0,0,,Offline,Non Refund,Contract,305.0,1,3,0\nResort Hotel,144,Apr,3,,0,GBR,Online,Non Refund,Transient,236.0,1,4,0\nResort Hotel,326,Jun,1,0.0,0,USA,Agent,Refundable,Contract,125.0,5,0,1\nCity Hotel,216,Sep,2,1.0,0,CHN,Corporate,Non Refund,Transient,226.0,2,1,1\nResort Hotel,300,Jan,3,0.0,0,GBR,Online,No Deposit,Group,336.0,2,0,1\nResort Hotel,131,May,2,0.0,1,JPN,Offline,Refundable,Transient,304.0,0,3,0\nResort Hotel,291,Nov,3,0.0,0,FRA,Offline,No Deposit,Transient,239.0,2,2,1\nCity Hotel,69,Jul,3,2.0,0,CHN,Online,No Deposit,Transient,176.0,1,1,0\nCity Hotel,251,Jan,2,0.0,0,USA,Online,Refundable,Transient,336.0,2,3,1\nResort Hotel,274,Apr,1,0.0,0,CHN,Offline,Non Refund,Transient,303.0,4,3,1\nCity Hotel,181,Jun,2,0.0,0,KOR,Agent,No Deposit,Group,262.0,2,3,1\nCity Hotel,166,Feb,2,0.0,0,KOR,Offline,No Deposit,Contract,299.0,1,1,1\nCity Hotel,90,Oct,4,0.0,0,GBR,Offline,No Deposit,Transient,5000.0,5,1,1\nCity Hotel,201,May,2,0.0,0,GBR,Online,No Deposit,Group,62.0,0,4,1\nCity Hotel,345,Nov,2,1.0,0,JPN,Agent,Refundable,Transient,94.0,3,4,1\nResort Hotel,18,Oct,2,0.0,0,FRA,Offline,Refundable,Transient,176.0,2,0,0\nCity Hotel,38,Jan,2,0.0,0,CHN,Offline,No Deposit,Contract,163.0,1,1,0\nResort Hotel,125,Jun,3,1.0,0,KOR,Corporate,Non Refund,Transient,325.0,3,1,0\nResort Hotel,172,Jun,1,2.0,1,GBR,Online,No Deposit,Group,254.0,3,1,1\nCity Hotel,140,Apr,3,0.0,0,FRA,Corporate,Non Refund,Group,322.0,4,4,1\nResort Hotel,241,Aug,2,0.0,0,CHN,Corporate,No Deposit,Contract,107.0,3,3,1\nResort Hotel,219,Apr,4,0.0,0,GBR,Offline,Non Refund,Transient,268.0,5,2,1\nResort Hotel,125,Aug,2,2.0,0,GBR,Online,No Deposit,Group,158.0,1,4,1\nCity Hotel,57,Aug,2,2.0,0,KOR,Agent,Non Refund,Transient,328.0,1,1,0\nCity Hotel,147,May,4,0.0,0,KOR,Offline,No Deposit,Transient,223.0,2,4,1\nResort Hotel,316,Apr,1,1.0,0,GBR,Agent,No Deposit,Transient,313.0,2,0,1\nCity Hotel,0,Dec,4,0.0,0,USA,Agent,Non Refund,Contract,160.0,2,1,0\nCity Hotel,347,Feb,2,0.0,0,GBR,Online,Refundable,Transient,236.0,5,0,1\nCity Hotel,189,Nov,1,0.0,0,FRA,Corporate,Non Refund,Group,318.0,3,1,1\nCity Hotel,190,Mar,2,1.0,0,GBR,Online,Refundable,Transient,278.0,3,4,1\nResort Hotel,311,Mar,3,0.0,0,JPN,Agent,No Deposit,Group,205.0,4,3,1\nResort Hotel,116,Apr,1,1.0,0,JPN,Offline,Non Refund,Transient,238.0,5,2,0\nCity Hotel,133,Apr,2,1.0,0,JPN,Agent,Non Refund,Group,321.0,2,0,1\nCity Hotel,57,Oct,2,1.0,0,,Offline,Non Refund,Group,51.0,0,4,0\nResort Hotel,43,Nov,2,0.0,0,USA,Offline,Refundable,Transient,295.0,4,3,0\nResort Hotel,172,Nov,1,0.0,0,GBR,Online,Refundable,Transient,259.0,0,4,0\nCity Hotel,159,May,3,0.0,1,JPN,Agent,No Deposit,Group,335.0,3,0,1\nResort Hotel,172,Apr,4,0.0,0,USA,Corporate,Refundable,Contract,62.0,4,2,1\nCity Hotel,316,Nov,4,0.0,0,KOR,Agent,Refundable,Transient,145.0,4,4,1\nCity Hotel,302,Oct,3,2.0,0,GBR,Agent,No Deposit,Contract,270.0,1,1,1\nResort Hotel,148,Aug,1,0.0,0,FRA,Corporate,Non Refund,Transient,287.0,3,3,0\nResort Hotel,79,Jun,3,0.0,0,CHN,Online,Non Refund,Transient,143.0,3,4,0\nCity Hotel,212,Jun,1,0.0,0,GBR,Agent,No Deposit,Transient,318.0,5,3,1\nCity Hotel,202,Aug,1,0.0,0,CHN,Agent,Non Refund,Transient,220.0,4,1,1\nResort Hotel,251,Jul,2,0.0,0,JPN,Offline,Refundable,Contract,143.0,3,2,1\nCity Hotel,228,Oct,2,0.0,0,CHN,Agent,No Deposit,Transient,198.0,4,2,1\nResort Hotel,163,Nov,3,2.0,0,JPN,Corporate,No Deposit,Group,161.0,5,1,1\nCity Hotel,226,Dec,2,0.0,0,KOR,Offline,No Deposit,Group,104.0,5,3,1\nResort Hotel,146,Oct,2,2.0,0,CHN,Online,Non Refund,Contract,165.0,1,4,0\nResort Hotel,19,Aug,2,1.0,1,GBR,Offline,No Deposit,Transient,192.0,4,1,1\nResort Hotel,46,Feb,4,0.0,0,JPN,Corporate,No Deposit,Group,250.0,3,0,1\nCity Hotel,232,Sep,2,2.0,1,GBR,Corporate,No Deposit,Contract,229.0,3,3,1\nCity Hotel,304,Jan,2,0.0,0,USA,Offline,Non Refund,Transient,251.0,4,2,1\nResort Hotel,13,Aug,2,1.0,0,JPN,Online,Refundable,Group,102.0,4,1,1\nCity Hotel,142,Dec,3,0.0,0,CHN,Offline,No Deposit,Group,229.0,4,2,1\nResort Hotel,0,Nov,2,1.0,0,JPN,Online,Refundable,Contract,186.0,2,3,0\nResort Hotel,53,Dec,2,1.0,0,GBR,Offline,Non Refund,Transient,231.0,3,2,0\nCity Hotel,258,Dec,1,1.0,0,KOR,Corporate,Non Refund,Transient,50.0,5,1,1\nCity Hotel,143,Apr,2,1.0,0,JPN,Agent,Non Refund,Group,93.0,3,3,1\nResort Hotel,11,Apr,2,0.0,0,CHN,Agent,Non Refund,Group,276.0,2,0,1\nCity Hotel,329,May,2,0.0,0,USA,Online,Refundable,Group,147.0,4,1,1\nCity Hotel,223,Aug,4,0.0,0,FRA,Online,No Deposit,Transient,257.0,1,4,1\nResort Hotel,271,May,2,0.0,0,KOR,Online,Non Refund,Contract,314.0,4,1,1\nResort Hotel,155,Aug,2,0.0,0,USA,Corporate,Non Refund,Contract,337.0,4,3,1\nCity Hotel,7,Oct,4,0.0,0,JPN,Offline,Refundable,Transient,320.0,2,1,0\nResort Hotel,121,Jan,2,2.0,0,GBR,Corporate,Refundable,Contract,189.0,3,0,0\nResort Hotel,347,Dec,2,0.0,0,GBR,Agent,Non Refund,Group,286.0,4,0,1\nCity Hotel,163,Oct,2,1.0,0,CHN,Online,No Deposit,Contract,121.0,3,4,1\nResort Hotel,89,Sep,2,0.0,0,GBR,Offline,No Deposit,Contract,204.0,0,2,0\nResort Hotel,135,Jun,4,1.0,0,KOR,Agent,Non Refund,Contract,239.0,5,3,0\nCity Hotel,185,Mar,2,2.0,0,GBR,Agent,Refundable,Group,317.0,3,3,1\nCity Hotel,315,Aug,3,0.0,0,CHN,Agent,Non Refund,Transient,156.0,1,2,0\nResort Hotel,177,Sep,2,0.0,0,FRA,Corporate,Non Refund,Group,281.0,5,0,1\nResort Hotel,27,Jun,2,1.0,0,JPN,Online,Refundable,Transient,91.0,1,0,0\nCity Hotel,219,Nov,1,0.0,0,JPN,Agent,Non Refund,Transient,239.0,4,1,1\nCity Hotel,40,Jul,2,0.0,0,GBR,Online,Non Refund,Transient,188.0,5,4,0\nCity Hotel,227,Jan,2,0.0,0,USA,Corporate,Non Refund,Contract,152.0,3,4,1\nCity Hotel,191,May,3,0.0,0,JPN,Agent,Refundable,Contract,,5,4,1\nResort Hotel,144,May,2,0.0,0,FRA,Corporate,No Deposit,Transient,322.0,4,1,1\nCity Hotel,200,Oct,4,0.0,0,GBR,Corporate,No Deposit,Transient,270.0,2,4,1\nCity Hotel,211,Apr,2,0.0,0,CHN,Online,Refundable,Contract,262.0,1,2,0\nResort Hotel,219,Jun,3,0.0,0,FRA,Agent,No Deposit,Group,105.0,4,1,1\nCity Hotel,239,Jul,3,2.0,0,GBR,Corporate,Non Refund,Transient,151.0,2,2,1\nResort Hotel,45,Sep,3,0.0,0,FRA,Agent,No Deposit,Group,241.0,5,1,1\nCity Hotel,34,Jan,3,2.0,0,JPN,Online,Non Refund,Contract,249.0,5,4,0\nCity Hotel,252,Jun,3,0.0,0,CHN,Corporate,No Deposit,Transient,282.0,4,2,1\nCity Hotel,81,Jul,2,0.0,0,GBR,Online,Refundable,Group,276.0,3,2,1\nResort Hotel,255,Mar,1,0.0,0,KOR,Agent,No Deposit,Group,188.0,5,2,1\nResort Hotel,196,Aug,1,0.0,0,CHN,Agent,No Deposit,Group,198.0,3,1,1\nCity Hotel,302,May,4,0.0,0,KOR,Online,No Deposit,Contract,164.0,3,3,1\nResort Hotel,9,Sep,2,0.0,0,FRA,Offline,Refundable,Contract,112.0,3,4,0\nResort Hotel,311,May,3,0.0,0,USA,Corporate,No Deposit,Group,153.0,0,2,1\nResort Hotel,285,Sep,2,0.0,1,CHN,Agent,Refundable,Group,205.0,2,3,1\nResort Hotel,241,Oct,1,0.0,0,FRA,Agent,Non Refund,Contract,322.0,2,4,1\nResort Hotel,250,Apr,1,0.0,0,KOR,Corporate,No Deposit,Group,55.0,5,4,1\nResort Hotel,4,Sep,2,0.0,0,JPN,Online,Refundable,Group,196.0,5,2,1\nCity Hotel,118,May,2,1.0,0,JPN,Online,Refundable,Contract,233.0,3,2,0\nCity Hotel,288,Oct,2,0.0,0,USA,Online,No Deposit,Group,77.0,0,1,1\nResort Hotel,64,Sep,2,0.0,0,CHN,Offline,Non Refund,Group,87.0,3,3,1\nCity Hotel,145,Mar,1,2.0,0,CHN,Offline,Refundable,Group,168.0,0,3,0\nCity Hotel,223,Apr,2,0.0,0,CHN,Agent,No Deposit,Contract,342.0,3,2,1\nCity Hotel,238,Sep,2,0.0,0,FRA,Online,Non Refund,Group,293.0,1,4,1\nCity Hotel,176,Oct,3,2.0,0,USA,Corporate,Refundable,Contract,117.0,1,2,0\nResort Hotel,266,Nov,2,0.0,0,CHN,Agent,Refundable,Contract,263.0,4,4,1\nCity Hotel,340,Jun,2,0.0,0,FRA,Corporate,Non Refund,Transient,267.0,3,4,1\nCity Hotel,281,Feb,1,0.0,0,JPN,Agent,Non Refund,Transient,226.0,5,2,1\nResort Hotel,62,Jul,1,0.0,0,KOR,Offline,No Deposit,Group,348.0,2,0,1\nResort Hotel,216,Feb,2,0.0,0,FRA,Agent,No Deposit,Contract,213.0,4,3,1\nCity Hotel,341,Nov,2,0.0,0,JPN,Offline,Refundable,Transient,107.0,5,4,1\nCity Hotel,314,Feb,2,0.0,0,JPN,Agent,Non Refund,Group,318.0,1,4,1\nCity Hotel,282,Nov,2,0.0,0,KOR,Online,Non Refund,Transient,107.0,3,0,1\nCity Hotel,176,Jan,2,2.0,0,JPN,Corporate,Non Refund,Transient,337.0,4,1,1\nCity Hotel,97,Nov,3,1.0,0,USA,Online,Refundable,Contract,154.0,3,0,0\nCity Hotel,104,Nov,3,0.0,0,KOR,Agent,,Contract,277.0,1,0,0\nResort Hotel,98,Dec,1,0.0,0,JPN,Agent,Non Refund,Transient,296.0,4,4,0\nCity Hotel,310,Nov,2,0.0,0,GBR,Agent,Refundable,Transient,237.0,1,3,0\nCity Hotel,1500,Mar,1,0.0,0,FRA,Offline,No Deposit,Contract,132.0,0,0,0\nResort Hotel,196,Jun,2,0.0,0,JPN,Corporate,No Deposit,Group,235.0,1,1,1\nResort Hotel,132,Aug,4,0.0,0,USA,Corporate,Refundable,Contract,301.0,3,2,0\nResort Hotel,258,Sep,1,1.0,0,CHN,Agent,Non Refund,Transient,287.0,2,0,1\nResort Hotel,22,Jul,2,0.0,0,JPN,Agent,Refundable,Group,233.0,1,0,0\nCity Hotel,52,Apr,2,0.0,0,CHN,Offline,No Deposit,Transient,333.0,5,1,1\nCity Hotel,164,Jun,3,0.0,0,GBR,Online,No Deposit,Group,259.0,2,3,1\nCity Hotel,201,May,2,0.0,0,JPN,Online,Refundable,Transient,345.0,0,0,0\nCity Hotel,82,Aug,1,1.0,0,KOR,Corporate,Refundable,Group,146.0,4,0,1\nCity Hotel,144,Jan,2,1.0,0,CHN,Offline,No Deposit,Group,257.0,4,3,1\nCity Hotel,84,Jan,2,1.0,0,GBR,Agent,Refundable,Transient,186.0,2,1,0\nResort Hotel,77,Nov,1,0.0,1,KOR,Corporate,No Deposit,Group,233.0,4,0,1\nCity Hotel,0,Jun,2,0.0,0,KOR,Offline,Refundable,Contract,2500.0,1,3,0\nResort Hotel,50,Oct,1,0.0,0,KOR,Online,Refundable,Transient,336.0,2,0,0\nResort Hotel,172,Dec,1,0.0,0,KOR,Offline,Refundable,Contract,191.0,3,2,1\nCity Hotel,204,Feb,2,0.0,0,JPN,Online,No Deposit,Transient,286.0,1,4,1\nResort Hotel,259,May,1,1.0,0,FRA,Offline,Refundable,Group,74.0,1,2,1\nCity Hotel,287,Jan,2,0.0,0,JPN,Corporate,No Deposit,Group,339.0,1,0,1\nResort Hotel,33,Jul,2,0.0,0,JPN,Online,No Deposit,Group,116.0,3,1,1\nCity Hotel,347,Jan,3,0.0,0,GBR,Corporate,Refundable,Transient,299.0,0,4,0\nResort Hotel,94,Apr,2,0.0,0,GBR,Corporate,Refundable,Contract,167.0,5,2,0\nCity Hotel,71,Sep,2,0.0,0,FRA,Online,No Deposit,Contract,122.0,4,3,1\nCity Hotel,38,Jan,1,2.0,0,GBR,Online,No Deposit,Transient,331.0,2,1,1\nCity Hotel,153,Apr,2,,0,USA,Agent,Non Refund,Transient,59.0,0,2,0\nCity Hotel,249,Jun,3,2.0,1,FRA,Agent,No Deposit,Contract,260.0,2,3,1\nCity Hotel,161,Jun,1,0.0,0,GBR,Agent,Non Refund,Contract,201.0,4,0,1\nResort Hotel,117,Dec,4,0.0,0,FRA,Corporate,Non Refund,Contract,54.0,3,3,0\nResort Hotel,258,Aug,1,0.0,0,JPN,Corporate,Non Refund,Contract,244.0,1,2,0\nResort Hotel,305,Jan,2,0.0,0,JPN,Agent,Refundable,Transient,332.0,1,2,0\nCity Hotel,267,Jul,3,1.0,0,FRA,Corporate,Refundable,Transient,162.0,3,0,1\nResort Hotel,53,Jan,3,0.0,0,,Corporate,No Deposit,Group,320.0,0,3,1\nCity Hotel,235,Jul,3,0.0,0,USA,Online,Non Refund,Contract,212.0,0,3,0\nCity Hotel,221,Mar,3,0.0,0,FRA,Online,Refundable,Group,154.0,2,0,1\nResort Hotel,250,Nov,2,0.0,0,GBR,Corporate,Refundable,Transient,230.0,3,3,1\nResort Hotel,312,Aug,3,1.0,0,CHN,Agent,Refundable,Transient,93.0,0,0,0\nCity Hotel,111,Mar,1,0.0,0,USA,Offline,Refundable,Group,331.0,3,1,1\nResort Hotel,254,Jan,10,0.0,0,KOR,Agent,Refundable,Contract,224.0,4,2,1\nCity Hotel,302,Aug,2,0.0,0,JPN,Offline,Non Refund,Contract,211.0,1,1,0\nCity Hotel,206,Mar,3,0.0,0,FRA,Agent,Non Refund,Contract,189.0,1,4,0\nCity Hotel,228,Feb,2,1.0,0,KOR,Online,Non Refund,Contract,181.0,1,4,0\nCity Hotel,340,Jan,2,1.0,0,FRA,Corporate,Non Refund,Group,136.0,3,4,1\nCity Hotel,65,Mar,2,2.0,0,JPN,Corporate,No Deposit,Group,225.0,3,0,1\nResort Hotel,74,Feb,3,1.0,0,JPN,Online,Non Refund,Transient,232.0,2,3,0\nResort Hotel,102,Feb,1,0.0,0,USA,Offline,Refundable,Contract,178.0,1,1,0\nCity Hotel,191,Jun,1,0.0,0,USA,Offline,Non Refund,Contract,295.0,2,1,1\n";
+const MODELS = [
+ {
+  "model": "결정트리 (max_depth=5)",
+  "train_acc": 0.9936,
+  "test_acc": 0.9852,
+  "gap": 0.0084
+ },
+ {
+  "model": "결정트리 + GridSearchCV",
+  "train_acc": 1.0,
+  "test_acc": 0.9852,
+  "gap": 0.0148
+ },
+ {
+  "model": "결정트리 + RandomizedSearchCV",
+  "train_acc": 0.9936,
+  "test_acc": 0.9778,
+  "gap": 0.0158
+ },
+ {
+  "model": "랜덤포레스트 + GridSearchCV",
+  "train_acc": 0.9968,
+  "test_acc": 0.9037,
+  "gap": 0.0931
+ },
+ {
+  "model": "로지스틱 회귀",
+  "train_acc": 0.7981,
+  "test_acc": 0.7704,
+  "gap": 0.0277
+ }
+];
+const IMPORTANCE = [
+ {
+  "feature": "customer_type",
+  "importance": 0.3121
+ },
+ {
+  "feature": "lead_time",
+  "importance": 0.2458
+ },
+ {
+  "feature": "previous_cancellations",
+  "importance": 0.2103
+ },
+ {
+  "feature": "deposit_type",
+  "importance": 0.2081
+ },
+ {
+  "feature": "adr",
+  "importance": 0.0237
+ },
+ {
+  "feature": "hotel",
+  "importance": 0.0
+ },
+ {
+  "feature": "arrival_month",
+  "importance": 0.0
+ },
+ {
+  "feature": "adults",
+  "importance": 0.0
+ },
+ {
+  "feature": "children",
+  "importance": 0.0
+ },
+ {
+  "feature": "babies",
+  "importance": 0.0
+ },
+ {
+  "feature": "country",
+  "importance": 0.0
+ },
+ {
+  "feature": "market_segment",
+  "importance": 0.0
+ },
+ {
+  "feature": "special_requests",
+  "importance": 0.0
+ }
+];
+
+// ---------- 데이터 준비 ----------
+const lines = CSV.replace(/^﻿/, '').trim().split(/\r?\n/);
+const head = lines[0].split(',');
+const rows = lines.slice(1).map((l) => { const v = l.split(','); const o = {}; head.forEach((k, i) => (o[k] = v[i] ?? '')); return o; });
+const num = (v) => (v === '' || v == null ? null : Number(v));
+const isClean = (r) => Number(r.lead_time) <= 365 && Number(r.adults) <= 6 && (num(r.adr) === null || (num(r.adr) >= 0 && num(r.adr) <= 1000));
+const clean = rows.filter(isClean);
+const cancelled = (r) => Number(r.is_canceled) === 1;
+const rate = (a) => (a.length ? a.filter(cancelled).length / a.length : 0);
+const overall = rate(clean);
+
+const pct = (v, d = 1) => (v * 100).toFixed(d) + '%';
+const comma = (v) => Number(v).toLocaleString('ko-KR');
+const signed = (v, d = 2) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(d);
+const KO = { 'No Deposit': '보증금 없음', 'Non Refund': '환불 불가', Refundable: '환불 가능', Group: '단체', Transient: '개별 고객', Contract: '계약 고객' };
+const FEAT = { lead_time: '리드타임', adults: '성인수', children: '어린이수', babies: '영유아수', adr: '객실요금', previous_cancellations: '이전취소횟수', special_requests: '특별요청수', arrival_month: '도착월', hotel: '호텔종류', country: '국적', market_segment: '예약경로', deposit_type: '보증금유형', customer_type: '고객유형' };
+const feat = (f) => { const [c, v] = f.split('='); return (FEAT[c] || c) + (v ? ' · ' + (KO[v] || v) : ''); };
+const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+// 툴팁
+const tip = h('div', 'tip'); tip.hidden = true; document.body.appendChild(tip);
+function hover(el, lines) {
+  el.addEventListener('mouseenter', () => { tip.replaceChildren(...lines.map((t, i) => h('div', i ? '' : 't1', t))); tip.hidden = false; });
+  el.addEventListener('mousemove', (e) => {
+    let x = e.pageX + 14; const y = e.pageY + 14;
+    if (x + tip.offsetWidth > document.documentElement.clientWidth - 8) x = e.pageX - tip.offsetWidth - 14;
+    tip.style.left = Math.max(8, x) + 'px'; tip.style.top = y + 'px';
+  });
+  el.addEventListener('mouseleave', () => (tip.hidden = true));
+}
+// 애니메이션: 처음엔 0에서 목표값으로
+const grow = [];
+const animate = () => requestAnimationFrame(() => requestAnimationFrame(() => grow.forEach((f) => f())));
+
+// ---------- 요약 ----------
+const byKey = (k, v) => clean.filter((r) => r[k] === v);
+const best = MODELS.reduce((a, b) => (b.test_acc > a.test_acc ? b : a));
+const K = {
+  total: comma(rows.length), outliers: comma(rows.length - clean.length), clean: comma(clean.length),
+  canceled: comma(clean.filter(cancelled).length), kept: comma(clean.length - clean.filter(cancelled).length),
+  rate: pct(overall), nodep: pct(rate(byKey('deposit_type', 'No Deposit'))), group: pct(rate(byKey('customer_type', 'Group'))),
+  best: pct(best.test_acc), bestname: best.model,
+};
+document.querySelectorAll('[data-k]').forEach((e) => (e.textContent = K[e.dataset.k]));
+const ring = document.getElementById('ring-val');
+grow.push(() => (ring.style.strokeDashoffset = String(326.7 * (1 - overall))));
+
+// ---------- 취소 요인 ----------
+const lead = (d) => (d <= 30 ? '0–30일' : d <= 90 ? '31–90일' : d <= 180 ? '91–180일' : d <= 270 ? '181–270일' : '271–365일');
+const FACTORS = [
+  { title: '보증금 유형', note: '보증금 빈 값 4건 제외', get: (r) => r.deposit_type, order: ['No Deposit', 'Non Refund', 'Refundable'] },
+  { title: '고객 유형', note: '단체 예약의 취소가 압도적', get: (r) => r.customer_type, order: ['Group', 'Transient', 'Contract'] },
+  { title: '이전 취소 횟수', note: '2회부터 취소율이 두 배 이상', get: (r) => r.previous_cancellations + '회', order: ['0회', '1회', '2회', '3회', '4회', '5회'] },
+  { title: '리드타임', note: '예약일부터 도착일까지 남은 일수', get: (r) => lead(Number(r.lead_time)), order: ['0–30일', '31–90일', '91–180일', '181–270일', '271–365일'] },
+];
+const grid = document.getElementById('rate-grid');
+FACTORS.forEach((f) => {
+  const card = h('div', 'card');
+  const stats = f.order.map((g) => { const a = clean.filter((r) => f.get(r) === g); return { g, n: a.length, c: a.filter(cancelled).length, r: rate(a) }; });
+  const top = stats.reduce((a, b) => (b.r > a.r ? b : a));
+  const ch = h('div', 'card-h'); ch.append(h('h3', null, f.title + '별 취소율'), h('span', 'chip' + (top.r >= 0.8 ? ' hot' : ''), '최고 ' + pct(top.r)));
+  card.append(ch, h('p', 'sub', f.note));
+  const bars = h('div', 'bars');
+  stats.forEach((s) => {
+    const row = h('div', 'br' + (s.r >= 0.8 ? ' hot' : ''));
+    const lab = h('div', 'bl'); lab.append(h('span', null, KO[s.g] || s.g), h('small', null, 'n=' + s.n));
+    const tr = h('div', 'tr'); const fl = h('div', 'fl'); const avg = h('div', 'avg'); avg.style.left = `calc(${overall * 100}% - 1px)`;
+    tr.append(fl, avg); grow.push(() => (fl.style.width = s.r * 100 + '%'));
+    row.append(lab, tr, h('span', 'bv', pct(s.r)));
+    hover(row, [f.title + ' · ' + (KO[s.g] || s.g), '취소율 ' + pct(s.r), `취소 ${s.c} / ${s.n}건`, '전체 대비 ' + signed((s.r - overall) * 100, 1) + '%p']);
+    bars.appendChild(row);
+  });
+  card.appendChild(bars); grid.appendChild(card);
+});
+
+// ---------- 상관계수 ----------
+const adrs = clean.map((r) => num(r.adr)).filter((v) => v !== null).sort((a, b) => a - b);
+const med = adrs.length % 2 ? adrs[(adrs.length - 1) / 2] : (adrs[adrs.length / 2 - 1] + adrs[adrs.length / 2]) / 2;
+const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const cols = {
+  lead_time: (r) => Number(r.lead_time), adults: (r) => Number(r.adults), children: (r) => num(r.children) ?? 0, babies: (r) => Number(r.babies),
+  adr: (r) => num(r.adr) ?? med, previous_cancellations: (r) => Number(r.previous_cancellations), special_requests: (r) => Number(r.special_requests),
+  arrival_month: (r) => months.indexOf(r.arrival_month) + 1, 'hotel=Resort Hotel': (r) => (r.hotel === 'Resort Hotel' ? 1 : 0),
+};
+['country', 'market_segment', 'deposit_type', 'customer_type'].forEach((c) => {
+  [...new Set(clean.map((r) => r[c] || 'Unknown'))].sort().forEach((v) => (cols[c + '=' + v] = (r) => ((r[c] || 'Unknown') === v ? 1 : 0)));
+});
+const y = clean.map((r) => Number(r.is_canceled)); const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length; const my = mean(y);
+const corr = Object.entries(cols).map(([k, f]) => {
+  const x = clean.map(f), mx = mean(x); let sxy = 0, sxx = 0, syy = 0;
+  x.forEach((v, i) => { sxy += (v - mx) * (y[i] - my); sxx += (v - mx) ** 2; syy += (y[i] - my) ** 2; });
+  return { k, r: sxx ? sxy / Math.sqrt(sxx * syy) : 0 };
+}).sort((a, b) => b.r - a.r);
+function corrRow(d) {
+  const row = h('div', 'cr' + (Math.abs(d.r) < 0.1 ? ' weak' : ''));
+  const tr = h('div', 'ctr'); const b = h('div', 'cb ' + (d.r >= 0 ? 'pos' : 'neg'));
+  const w = Math.min(Math.abs(d.r), 0.5) / 0.5 * 50; b.style.left = '50%'; b.style.width = '0';
+  grow.push(() => { b.style.width = w + '%'; b.style.left = (d.r >= 0 ? 50 : 50 - w) + '%'; });
+  tr.appendChild(b); row.append(h('span', 'cl', feat(d.k)), tr, h('span', 'cv', signed(d.r)));
+  hover(row, [feat(d.k), '상관계수 ' + signed(d.r, 3)]);
+  return row;
+}
+const strong = corr.filter((d) => Math.abs(d.r) >= 0.1), weak = corr.filter((d) => Math.abs(d.r) < 0.1);
+document.getElementById('corr-strong').append(...strong.map(corrRow));
+document.getElementById('corr-weak').append(...weak.map(corrRow));
+document.getElementById('weak-sum').textContent = `관계가 약한 변수 ${weak.length}개 보기 (|r| < 0.1)`;
+const INS = [
+  [strong[0], '보증금이 없으면 부담 없이 취소합니다.'],
+  [strong[1], '단체 예약은 일정이 바뀌면 통째로 취소됩니다.'],
+  [strong[2], '과거에 취소한 고객은 또 취소합니다.'],
+  [strong[strong.length - 1], '계약 고객은 가장 안정적으로 투숙합니다.'],
+];
+document.getElementById('insights').append(...INS.map(([d, t]) => { const c = h('div', 'ins' + (d.r < 0 ? ' neg' : '')); c.append(h('div', 'v', signed(d.r)), h('b', null, feat(d.k)), h('span', null, t)); return c; }));
+
+// ---------- 모델 ----------
+const lo = 0.7, hi = 1.0, sx = (v) => ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * 100;
+const db = document.getElementById('dumbbell'); const body = document.getElementById('model-body');
+document.getElementById('best-chip').textContent = '최고 ' + pct(best.test_acc);
+MODELS.forEach((m) => {
+  const over = m.gap >= 0.05;
+  const row = h('div', 'dr' + (over ? ' over' : ''));
+  const name = h('div', 'dn', m.model.split(' + ')[0]); if (m.model.includes(' + ')) name.appendChild(h('small', null, '+ ' + m.model.split(' + ')[1]));
+  const t = h('div', 'dt');
+  [0.7, 0.8, 0.9, 1].forEach((v) => { const g = h('div', 'grid-l'); g.style.left = sx(v) + '%'; t.appendChild(g); });
+  const a = sx(Math.min(m.train_acc, m.test_acc)), b = sx(Math.max(m.train_acc, m.test_acc));
+  const seg = h('div', 'seg'); seg.style.left = a + '%'; seg.style.width = b - a + '%';
+  const d1 = h('div', 'dot trn'); d1.style.left = sx(m.train_acc) + '%';
+  const d2 = h('div', 'dot tst'); d2.style.left = sx(m.test_acc) + '%';
+  const l2 = h('div', 'lbl', pct(m.test_acc)); l2.style.left = sx(m.test_acc) + '%';
+  t.append(seg, d1, d2, l2); row.append(name, t);
+  hover(row, [m.model, '훈련 ' + pct(m.train_acc), '테스트 ' + pct(m.test_acc), '차이 ' + (m.gap * 100).toFixed(1) + '%p']);
+  db.appendChild(row);
+  const tr = document.createElement('tr');
+  const verdict = over ? ['과적합 경향', 'warn'] : m.test_acc < 0.85 ? ['성능 낮음', 'bad'] : ['양호', ''];
+  const vd = h('td'); vd.appendChild(h('span', 'pill ' + verdict[1], verdict[0]));
+  tr.append(h('td', m === best ? 'big' : '', m.model), h('td', 'n', pct(m.train_acc)), h('td', 'n' + (m === best ? ' big' : ''), pct(m.test_acc)), h('td', 'n', (m.gap * 100).toFixed(1) + '%p'), vd);
+  body.appendChild(tr);
+});
+const ticks = document.getElementById('dticks');
+[0.7, 0.8, 0.9, 1].forEach((v) => { const s = h('span', null, pct(v, 0)); s.style.left = sx(v) + '%'; ticks.appendChild(s); });
+
+const imp = IMPORTANCE.filter((d) => d.importance > 0); const imax = Math.max(...imp.map((d) => d.importance));
+document.getElementById('imp').append(...imp.map((d, i) => {
+  const row = h('div', 'br' + (d.importance < 0.05 ? ' low' : ''));
+  const lab = h('div', 'bl'); lab.append(h('span', null, FEAT[d.feature] || d.feature), h('small', null, d.feature));
+  const tr = h('div', 'tr'); const fl = h('div', 'fl'); tr.appendChild(fl); grow.push(() => (fl.style.width = (d.importance / imax) * 100 + '%'));
+  row.append(lab, tr, h('span', 'bv', d.importance.toFixed(3)));
+  hover(row, [d.feature, '중요도 ' + d.importance.toFixed(3)]);
+  return row;
+}));
+document.getElementById('imp-zero').textContent = `나머지 ${IMPORTANCE.length - imp.length}개 변수(호텔종류, 도착월, 국적 등)는 중요도 0입니다.`;
+
+// ---------- 이상치 ----------
+const REASON = { lead_time: '리드타임 1년 초과 (입력 오류 추정)', adults: '성인 수 비정상', adrNeg: '음수 요금', adrHigh: '요금 비정상 고가' };
+const ob = document.getElementById('out-body');
+rows.forEach((r, i) => {
+  const items = [];
+  if (Number(r.lead_time) > 365) items.push(['lead_time', r.lead_time, REASON.lead_time]);
+  if (Number(r.adults) > 6) items.push(['adults', r.adults, REASON.adults]);
+  if (r.adr !== '' && Number(r.adr) < 0) items.push(['adr', r.adr, REASON.adrNeg]);
+  if (r.adr !== '' && Number(r.adr) > 1000) items.push(['adr', r.adr, REASON.adrHigh]);
+  items.forEach(([c, v, why]) => {
+    const tr = document.createElement('tr'); const cc = h('td'); cc.appendChild(h('span', 'col', c));
+    tr.append(h('td', 'n', String(i + 1)), cc, h('td', 'n big', comma(v)), h('td', null, why), h('td', cancelled(r) ? 'st-c' : 'st-k', cancelled(r) ? '취소' : '유지'));
+    ob.appendChild(tr);
+  });
+});
+
+// ---------- 내비 강조 ----------
+const links = [...document.querySelectorAll('.nav a')];
+const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) links.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id)); }), { rootMargin: '-40% 0px -55% 0px' });
+document.querySelectorAll('main section').forEach((s) => io.observe(s));
+
+animate();
+</script>
+</body>
+</html>
