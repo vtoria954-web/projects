@@ -1,0 +1,11 @@
+is_canceled - 종속변수
+
+
+- 독립변수
+previous_cancellations 
+lead_time 
+deposit_type
+
+-낮은 상관계수의 독립변수
+hotel
+arrival_month
